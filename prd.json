@@ -18,8 +18,8 @@
         "docker compose up brings up postgres and api, with api waiting for db health before starting.",
         "The project's lint, type-check, and build commands pass."
       ],
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "NestJS 11 (TypeScript, CommonJS) api repo scaffolded with Prisma 6 + PostgreSQL. GET /api/v1/health returns 200 {\"status\":\"ok\",\"uptime\",\"timestamp\"}. PrismaService connects on startup (log: 'Connected to PostgreSQL via Prisma'). Multi-stage Dockerfile runs as non-root uid/gid 1001 (api) with a HEALTHCHECK; compose gates api on db health then runs 'npx prisma migrate deploy && node dist/main.js'. Validation in api/: npm run build, typecheck, lint, test (1 passed), test:e2e (2 passed), format:check all pass; docker compose up db+api -> db healthy then api starts, curl localhost:3001/api/v1/health -> 200; container uid=1001(api). api commit 227bb2a on branch ralph/task-001-api-scaffold. Note: latest Nest CLI scaffold (Nest 12/TS 6/vitest) failed to npm-install (Arborist peer crash); pinned stable Nest 11/TS 5.9/Prisma 6/Jest. Prisma schema has no models yet by design (TASK-002 adds User)."
     },
     {
       "id": "TASK-002",

@@ -1,0 +1,51 @@
+=====================================================================
+2026-10-12T23:51Z  TASK-001  Scaffold the NestJS API service and wire Postgres into the stack
+Branch: ralph/task-001-api-scaffold (api repo) | root repo: master
+Commit: api@227bb2af8305e2e9b08645b046fb5c23eccdefd1
+=====================================================================
+
+Summary:
+- Scaffolded api/ as a NestJS 11 (TypeScript, CommonJS) + Prisma 6 + PostgreSQL repo.
+- Global route prefix api/v1; GET /api/v1/health returns 200 with {status,uptime,timestamp}.
+- PrismaModule/PrismaService ($connect on module init) connects to PostgreSQL at startup.
+- Multi-stage Dockerfile (deps -> build -> runner) runs as non-root uid/gid 1001 (api) with a
+  HEALTHCHECK; compose runs `npx prisma migrate deploy && node dist/main.js`.
+- Jest unit + e2e tests, ESLint 9 flat config + Prettier, tsc type-check.
+- Decision: the newest @nestjs/cli scaffold (Nest 12 / TS 6 / vitest / oxlint) failed to
+  npm-install ("Cannot read properties of null (reading 'edgesOut')" in npm Arborist, from the
+  vitest/msw peer graph). Pinned a stable, coherent stack instead: Nest 11, TS 5.9, Prisma 6,
+  Jest 29 + ts-jest.
+
+Important files:
+- api/package.json, api/tsconfig.json, api/tsconfig.build.json, api/nest-cli.json
+- api/Dockerfile, api/.dockerignore, api/eslint.config.mjs, api/.prettierrc
+- api/prisma/schema.prisma (datasource=postgresql, generator=prisma-client-js; no models yet)
+- api/src/main.ts, api/src/app.module.ts
+- api/src/prisma/prisma.module.ts, api/src/prisma/prisma.service.ts
+- api/src/health/health.module.ts, api/src/health/health.controller.ts, api/src/health/health.service.ts
+- api/src/health/health.service.spec.ts, api/test/health.e2e-spec.ts, api/test/jest-e2e.json
+
+Validation (all commands run in api/; local env needs NODE_ENV=development):
+- npm run build            -> PASS (emits dist/main.js)
+- npm run typecheck        -> PASS
+- npm run lint             -> PASS
+- npm test                 -> PASS (1 test)
+- npm run test:e2e         -> PASS (2 tests)
+- npm run format:check     -> PASS
+- docker compose -f docker-compose.yml -f <scratch override> up -d db api
+                           -> db reachable/healthy, api waits for db health then starts
+- curl localhost:3001/api/v1/health  -> 200 {"status":"ok","uptime":...,"timestamp":...}
+- api container log        -> "PrismaService Connected to PostgreSQL via Prisma"
+- docker compose exec api id -> uid=1001(api) gid=1001(api); Dockerfile HEALTHCHECK -> healthy
+
+Remaining concerns:
+- This machine exports NODE_ENV=production, so `npm install` skips dev deps. Locally install with
+  `NODE_ENV=development npm install --include=dev` (Docker build is unaffected).
+- Host port 5432 is held by an unrelated container (social-feed-postgres). The stack was smoke
+  tested using a scratch compose override that resets the db service's published port; the
+  committed docker-compose.yml is unchanged (its 5432 mapping and db-health gating are correct).
+- Prisma schema intentionally has no models yet (TASK-002 adds User + its migration). `prisma
+  generate` works with an empty schema and `prisma migrate deploy` is a no-op until then.
+- `npm audit` reports 32 high-severity advisories in the dev tree (jest/eslint transitives);
+  production deps were not broken out yet. Worth a review in a later task if desired.
+
