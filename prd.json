@@ -1,0 +1,235 @@
+{
+  "$schema": "./prd.schema.json",
+  "schemaVersion": 1,
+  "project": "Task board",
+  "description": "Full-stack task board: Next.js frontend, NestJS API, PostgreSQL, Docker, with registration, login, and per-user task management.",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "Scaffold the NestJS API service and wire Postgres into the stack",
+      "description": "Scaffold the NestJS api repo (TypeScript) with Prisma and PostgreSQL, add a health endpoint and a multi-stage Dockerfile, and bring up postgres + api via the workspace docker-compose.",
+      "branchName": "ralph/task-001-api-scaffold",
+      "priority": 1,
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "The api repo builds and boots; GET /api/v1/health returns 200 with a status payload.",
+        "Prisma is configured against PostgreSQL and connects on startup.",
+        "The api Dockerfile builds a multi-stage, non-root image.",
+        "docker compose up brings up postgres and api, with api waiting for db health before starting.",
+        "The project's lint, type-check, and build commands pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-002",
+      "title": "Add the user account data model",
+      "description": "Add the Prisma User model (unique email, name, passwordHash, timestamps) and the migration required by authentication.",
+      "branchName": "ralph/task-002-user-model",
+      "priority": 1,
+      "dependsOn": ["TASK-001"],
+      "acceptanceCriteria": [
+        "The User model stores a unique email and a password hash.",
+        "The migration applies and rolls back successfully.",
+        "A duplicate email is rejected at the database level.",
+        "Relevant model and migration tests pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-003",
+      "title": "Implement registration and login authentication",
+      "description": "Implement register, login, refresh, logout, and me endpoints using JWT access tokens, a refresh cookie, and bcrypt password hashing.",
+      "branchName": "ralph/task-003-auth",
+      "priority": 1,
+      "dependsOn": ["TASK-002"],
+      "acceptanceCriteria": [
+        "Valid registration creates a user with a bcrypt password hash and never returns the hash.",
+        "Valid credentials return an access token and set a refresh cookie.",
+        "Invalid credentials return 401 without revealing which field was wrong.",
+        "POST /auth/refresh issues a new access token from a valid refresh cookie.",
+        "GET /auth/me returns the authenticated user's profile.",
+        "Authentication e2e tests pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-004",
+      "title": "Add the JWT auth guard and current-user decorator",
+      "description": "Add a reusable JWT guard and a @CurrentUser() decorator so protected routes resolve the authenticated user.",
+      "branchName": "ralph/task-004-auth-guard",
+      "priority": 2,
+      "dependsOn": ["TASK-003"],
+      "acceptanceCriteria": [
+        "Requests without a valid bearer token to a protected route are rejected with 401.",
+        "The @CurrentUser() decorator resolves the authenticated user id.",
+        "Guard behaviour is covered by tests."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-005",
+      "title": "Create the task data model",
+      "description": "Add the Prisma Task model (title, optional description, due date, completed, owner relation, timestamps, indexes) and its migration.",
+      "branchName": "ralph/task-005-task-model",
+      "priority": 2,
+      "dependsOn": ["TASK-002"],
+      "acceptanceCriteria": [
+        "A Task stores a title, optional description, optional due date, completion state, owner, and timestamps.",
+        "Deleting a user cascades to their tasks.",
+        "Indexes support listing tasks by owner and completion state.",
+        "The migration and model tests pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-006",
+      "title": "Implement per-user task CRUD endpoints",
+      "description": "Implement create, paginated list, get, update, and delete endpoints for tasks, scoped to the authenticated user's own tasks.",
+      "branchName": "ralph/task-006-task-crud",
+      "priority": 2,
+      "dependsOn": ["TASK-004", "TASK-005"],
+      "acceptanceCriteria": [
+        "An authenticated user can create, list, read, update, and delete their own tasks.",
+        "A user cannot read, update, or delete another user's task (returns 404).",
+        "The list endpoint supports pagination and filtering by completion state.",
+        "Invalid input returns a structured 400 validation error.",
+        "Task CRUD e2e tests pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-007",
+      "title": "Standardize API responses, errors, and documentation",
+      "description": "Add the global response interceptor, global exception filter, startup env validation, and OpenAPI/Swagger docs, and document the API in the repo README.",
+      "branchName": "ralph/task-007-api-polish",
+      "priority": 3,
+      "dependsOn": ["TASK-006"],
+      "acceptanceCriteria": [
+        "Success responses share one envelope and errors share one structure.",
+        "Startup fails fast with a clear message when a required env var is missing.",
+        "Swagger UI is served and describes all endpoints.",
+        "The API README documents how to run, configure, and test the service."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-008",
+      "title": "Scaffold the Next.js web service with Docker",
+      "description": "Create the Next.js (App Router, TypeScript, Tailwind) web repo with a standalone-output multi-stage Dockerfile, and add the web service to the root docker-compose.",
+      "branchName": "ralph/task-008-web-scaffold",
+      "priority": 4,
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "The web app builds and runs; the home route renders.",
+        "The Dockerfile builds a minimal standalone image and serves the app as a non-root user.",
+        "docker compose up serves the web service alongside api and postgres.",
+        "The project's lint, type-check, and build commands pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-009",
+      "title": "Add the API client and authentication token handling",
+      "description": "Add a typed API client that injects the bearer token, refreshes once on 401 via /auth/refresh, and clears auth on refresh failure.",
+      "branchName": "ralph/task-009-web-api-client",
+      "priority": 4,
+      "dependsOn": ["TASK-008", "TASK-003"],
+      "acceptanceCriteria": [
+        "Requests to the API include the access token when present.",
+        "A 401 triggers exactly one refresh attempt, then retries the original request.",
+        "A failed refresh clears auth state and redirects to /login.",
+        "The client is covered by tests."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-010",
+      "title": "Add registration, login, and protected routing",
+      "description": "Add register and login pages, an auth provider that restores the session via /auth/me, and middleware that redirects unauthenticated users away from the task board.",
+      "branchName": "ralph/task-010-web-auth",
+      "priority": 4,
+      "dependsOn": ["TASK-009"],
+      "acceptanceCriteria": [
+        "The register and login forms submit and display validation errors accessibly.",
+        "Login failures are shown without clearing the email field.",
+        "Authenticated users land on the task board; unauthenticated users are redirected to login.",
+        "The flow is verified in the browser and relevant checks pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-011",
+      "title": "Build the task board list view",
+      "description": "Render the authenticated user's tasks with loading, empty, and error states, using the API client and TanStack Query.",
+      "branchName": "ralph/task-011-web-task-list",
+      "priority": 5,
+      "dependsOn": ["TASK-010", "TASK-006"],
+      "acceptanceCriteria": [
+        "The board lists the current user's tasks from the API.",
+        "Loading, empty, and error states are each rendered appropriately.",
+        "The list is responsive and keyboard accessible.",
+        "The view is verified in the browser and relevant checks pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-012",
+      "title": "Add task creation",
+      "description": "Add a create-task form that validates a nonempty title and adds the new task to the board.",
+      "branchName": "ralph/task-012-web-create-task",
+      "priority": 5,
+      "dependsOn": ["TASK-011"],
+      "acceptanceCriteria": [
+        "A user can create a task with a nonempty title and optional details.",
+        "The form rejects an empty title before submitting.",
+        "The new task appears on the board without a full reload.",
+        "The flow is verified in the browser and relevant checks pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-013",
+      "title": "Add task completion, editing, and deletion",
+      "description": "Allow a user to toggle completion, edit a task's details, and delete a task, with the board staying consistent after reload.",
+      "branchName": "ralph/task-013-web-task-actions",
+      "priority": 6,
+      "dependsOn": ["TASK-012"],
+      "acceptanceCriteria": [
+        "A user can mark an owned task complete and incomplete, and the state survives a reload.",
+        "A user can edit a task's title and details.",
+        "A user can delete a task after confirmation, and it disappears from the board.",
+        "The interactions are verified in the browser and relevant checks pass."
+      ],
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TASK-014",
+      "title": "Wire the full stack, document it, and smoke test end to end",
+      "description": "Finalize docker-compose (postgres + api + web), write the root README with run and smoke-test instructions, and verify the complete register-to-task-board flow in the browser.",
+      "branchName": "ralph/task-014-fullstack-integration",
+      "priority": 7,
+      "dependsOn": ["TASK-007", "TASK-013"],
+      "acceptanceCriteria": [
+        "docker compose up starts postgres, api, and web, and migrations run automatically.",
+        "A first-time user can register, log in, and manage tasks entirely through the browser against the compose stack.",
+        "The root README documents setup, environment, and how to smoke test the stack.",
+        "The full end-to-end flow is verified and all project checks pass."
+      ],
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
