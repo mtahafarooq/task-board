@@ -52,8 +52,8 @@
         "GET /auth/me returns the authenticated user's profile.",
         "Authentication e2e tests pass."
       ],
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Auth module: POST /auth/register (201) stores a bcrypt cost-12 hash and returns {user, accessToken} plus an httpOnly refresh_token cookie (path /api/v1/auth, 7d); passwordHash is never returned. POST /auth/login (200) returns an access token + cookie; a wrong password and an unknown email both return 401 'Invalid email or password'. POST /auth/refresh (200) verifies the refresh JWT from the cookie and issues a new access token (missing/invalid -> 401). POST /auth/logout (200) clears the cookie. GET /auth/me (200) returns the profile from a Bearer token (missing/invalid -> 401). Added @nestjs/jwt@11 (v12 is ESM-only and breaks the CommonJS/Jest build), bcrypt, cookie-parser, class-validator/class-transformer with a global ValidationPipe. Tests: src/auth/auth.service.spec.ts (unit) and test/auth.e2e-spec.ts (e2e, Prisma mocked in-memory). All api checks pass: npm run build, typecheck, lint, test (7), test:e2e (12), format:check. Also verified against a throwaway postgres:17-alpine (host 55432): `prisma migrate deploy` applied, then curl register/login/refresh/me/logout -> 201/200/200/200/200, invalid creds 401 (identical message), duplicate email 409, no token 401; DB row stored a $2b$ 60-char hash (not plaintext). Fixed a latent build bug: tsconfig.build.json now sets tsBuildInfoFile into ./dist so deleteOutDir + incremental no longer leave a partial dist on repeat builds. Cookie Secure flag is controlled by the explicit COOKIE_SECURE env (default false) instead of NODE_ENV, so tests are environment-independent. api commit 028d4e1d98760f3796609299435370d65db0144b on branch ralph/task-003-auth."
     },
     {
       "id": "TASK-004",
