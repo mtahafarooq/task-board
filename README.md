@@ -8,8 +8,8 @@ The application code lives in two independent repos, created by the loop:
 - `api/` — NestJS + Prisma + PostgreSQL backend
 - `web/` — Next.js (App Router) frontend
 
-This root repo only holds orchestration (compose, environment), the PRD, the Ralph
-backlog, and the loop tooling.
+This root repo only holds orchestration (compose, environment), the Ralph loop
+tooling, its reusable blueprint, and one archived directory per completed feature run.
 
 ## Layout
 
@@ -19,21 +19,27 @@ task-board/
 ├── web/                 # Next.js frontend (created by TASK-008)
 ├── docker-compose.yml   # postgres + api + web (local dev)
 ├── .env.example         # copy to .env
-├── prd.md               # product requirements
-├── prd.json             # Ralph backlog
-├── progress.txt         # Ralph append-only memory
-├── scripts/run.sh       # single entrypoint for the loop
-├── PROMPT.md            # one iteration's instructions
-├── prd.schema.json      # backlog schema
-├── ralph.sh             # bounded loop
-├── ralph-once.sh        # one fresh iteration
-└── validate-prd.sh      # backlog validator
+├── blueprint/           # reusable engine for every run
+│   ├── PROMPT.md        # one iteration's instructions
+│   ├── prd.schema.json  # backlog schema
+│   └── progress.txt     # empty append-only memory template
+├── scripts/             # the loop tooling
+│   ├── ralph.sh         # bounded loop
+│   ├── ralph-once.sh    # one fresh iteration
+│   └── validate-prd.sh  # backlog validator
+├── archives/            # one directory per completed feature run
+│   └── 0001-task-board/
+│       ├── prd.md       # approved product requirements
+│       ├── prd.json     # the executed Ralph backlog
+│       └── progress.txt # the run's append-only memory
+├── prd.json             # created per run, archived when the run completes
+└── progress.txt         # created per run, archived when the run completes
 ```
 
 ## Requirements
 
 - Docker (with Compose)
-- `jq` on `PATH` (used by `ralph.sh` and `validate-prd.sh`)
+- `jq` on `PATH` (used by `scripts/ralph.sh` and `scripts/validate-prd.sh`)
 - Free host ports `3000` (web), `3001` (api), and `5432` (postgres) for the compose stack
 
 ## Environment
@@ -102,14 +108,29 @@ Reset everything (including the database) with `docker compose down -v`.
 
 ## Build it with the Ralph loop
 
+Each feature is one run: write the PRD, convert it to a backlog, run the loop, then
+archive the three run files. `PROMPT.md`, `prd.schema.json`, and an empty
+`progress.txt` live in `blueprint/` and are reused for every run.
+
 ```sh
-./validate-prd.sh        # schema + dependency + cycle check, must print OK
-./scripts/run.sh 10      # up to 10 iterations; each is one fresh agent process
+# 1. Write the PRD and its backlog (skills ship in .commandcode/skills/)
+/prd-generator                            # -> prd.md
+/prd-to-json                              # -> prd.json
+cp blueprint/progress.txt progress.txt    # fresh append-only memory for this run
+
+# 2. Validate and run
+./scripts/validate-prd.sh                 # schema + dependency + cycle check, must print OK
+./scripts/ralph.sh 10                     # up to 10 iterations; each is one fresh agent process
+
+# 3. Archive the finished run
+mkdir -p archives/0002-<feature>
+git mv prd.md prd.json progress.txt archives/0002-<feature>/
 ```
 
-`ralph.sh` prints one line per iteration — the iteration out of the total and the
+`scripts/ralph.sh` prints one line per iteration — the iteration out of the total and the
 task it is working on — and stops when every task passes, the agent reports
 `BLOCKED`/`FAILED`, `prd.json` stops changing, or the iteration limit is reached.
 Full agent output per iteration is written to `.ralph/logs/iteration-N.log`.
 
-Run a single iteration by hand with `./ralph-once.sh`.
+`scripts/ralph-once.sh` reads one iteration's instructions from `blueprint/PROMPT.md`.
+Run a single iteration by hand with `./scripts/ralph-once.sh`.

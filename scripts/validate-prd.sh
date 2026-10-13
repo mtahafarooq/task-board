@@ -7,9 +7,10 @@ set -euo pipefail
 # in prd.schema.json, and the semantic rules a schema cannot express: unique
 # task ids, dependencies that resolve, and no dependency cycles.
 #
-# Usage: ./validate-prd.sh [path-to-prd.json]   (default: ./prd.json)
+# Usage: ./scripts/validate-prd.sh [path-to-prd.json]   (default: ./prd.json)
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 cd "$ROOT_DIR"
 
 PRD_PATH="${1:-prd.json}"

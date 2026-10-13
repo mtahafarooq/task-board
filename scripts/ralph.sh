@@ -8,11 +8,12 @@ set -euo pipefail
 # every task passes, when the agent reports it is blocked or failed, when
 # prd.json stops changing, or when the iteration limit is reached.
 #
-# Usage: ./ralph.sh [max-iterations]   (default: 10)
+# Usage: ./scripts/ralph.sh [max-iterations]   (default: 10)
 #
 # Exit status: 0 when every task passes, 1 otherwise.
 
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 cd "$ROOT_DIR"
 
 MAX_ITERATIONS="${1:-10}"
@@ -26,7 +27,7 @@ if [[ ! -f prd.json ]]; then
   exit 1
 fi
 
-./validate-prd.sh prd.json || exit 1
+"$SCRIPT_DIR/validate-prd.sh" prd.json || exit 1
 
 LOG_DIR="$ROOT_DIR/.ralph/logs"
 mkdir -p "$LOG_DIR"
@@ -87,7 +88,7 @@ while :; do
 
   before="$(prd_fingerprint)"
   status=0
-  ./ralph-once.sh > "$log_file" 2>&1 || status=$?
+  "$SCRIPT_DIR/ralph-once.sh" > "$log_file" 2>&1 || status=$?
   after="$(prd_fingerprint)"
 
   if grep -q '<ralph>BLOCKED:' "$log_file"; then

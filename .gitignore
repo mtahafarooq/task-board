@@ -10,3 +10,7 @@ web/
 
 # OS noise
 .DS_Store
+
+# Local Command Code state (machine-specific, not shared)
+.commandcode/settings.json
+.commandcode/taste/

@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Run one fresh agent iteration from this repository's root.
-ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 cd "$ROOT_DIR"
 
 [[ -f prd.json ]] || {
@@ -10,4 +11,4 @@ cd "$ROOT_DIR"
   exit 1
 }
 
-cmd -p --yolo --verbose "$(cat PROMPT.md)"
+cmd -p --yolo --verbose "$(cat "$ROOT_DIR/blueprint/PROMPT.md")"

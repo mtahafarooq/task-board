@@ -1,5 +1,5 @@
 {
-  "$schema": "./prd.schema.json",
+  "$schema": "../../blueprint/prd.schema.json",
   "schemaVersion": 1,
   "project": "Task board",
   "description": "Full-stack task board: Next.js frontend, NestJS API, PostgreSQL, Docker, with registration, login, and per-user task management.",

@@ -1,0 +1,7 @@
+{
+  "$schema": "./blueprint/prd.schema.json",
+  "schemaVersion": 1,
+  "project": "",
+  "description": "",
+  "tasks": []
+}
