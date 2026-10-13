@@ -180,8 +180,8 @@
         "The list is responsive and keyboard accessible.",
         "The view is verified in the browser and relevant checks pass."
       ],
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Built the /board task list (web/src/components/TaskList.tsx + TaskListView.tsx) on TanStack Query 5.104.2 (@tanstack/react-query), with a QueryClientProvider (retry:1, refetchOnWindowFocus:false) added beside AuthProvider in src/app/providers.tsx. TaskList runs useQuery keyed by user id (['tasks', userId], to prevent cross-user cache leakage) calling client.listTasks({ limit: 100 }) through the shared apiClient; TaskListView renders role='status' loading, role='alert' + 'Try again' retry on error (message via taskErrorMessage), a 'No tasks yet' empty placeholder, and a semantic <ul aria-label='Your tasks'> (title, optional description, optional due date, Open/Completed badge). Responsive (flex-col -> sm:flex-row; computed flexDirection column@390px / row@1280px) and keyboard accessible (native ul/button + aria-label). Tests: TaskListView.spec.tsx (renderToStaticMarkup: loading/error/empty/list + due date) and TaskList.spec.ts (query key, error message) -> npm test 38 passed (6 suites, +8). Validation in web/: format:check, lint, typecheck all PASS; npm run build PASS (routes /, /login, /register, /board 6.29kB). Browser-verified (agent-browser; `next start` on 3000 against a built NestJS API on 3101 behind a scratch CORS proxy on 3001 + throwaway postgres:17-alpine on 55432): register -> /board empty state; 3 tasks created via API -> reload lists them newest-first with Completed/Open badges + description + 'Due Feb 3, 2026'; simulated /tasks 500 -> role=alert 'We couldn't load your tasks: Simulated tasks failure' + Try again; clearing the failure and clicking Try again re-renders the list. web commit e4f8b76 on branch ralph/task-011-web-task-list. TASK-012/013 (create + actions) build on this."
     },
     {
       "id": "TASK-012",

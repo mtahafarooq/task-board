@@ -683,3 +683,69 @@ Remaining concerns:
   cookie is corrected on the next load when /auth/me fails (the provider clears it and
   the board redirects to /login).
 - /board is a placeholder shell; TASK-011 builds the list view.
+
+
+=====================================================================
+2026-10-13T00:48Z  TASK-011  Build the task board list view
+Branch: ralph/task-011-web-task-list (web repo) | root repo: master
+Commit: web@e4f8b76
+=====================================================================
+
+Summary:
+- Built the /board task list on TanStack Query 5.104.2 (@tanstack/react-query):
+  src/components/TaskList.tsx (container) + src/components/TaskListView.tsx
+  (presentational).
+- Added a QueryClientProvider (retry:1, refetchOnWindowFocus:false) beside
+  AuthProvider in src/app/providers.tsx.
+- TaskList runs useQuery keyed by user id (['tasks', userId], so cached tasks
+  never leak between accounts) calling client.listTasks({ limit: 100 }) through
+  the shared apiClient; it maps query status -> a view state and formats API
+  errors via taskErrorMessage().
+- TaskListView renders all four states: role="status" loading; role="alert" +
+  "Try again" (refetch) on error; a "No tasks yet" empty placeholder; and a
+  semantic <ul aria-label="Your tasks"> with title, optional description,
+  optional due date, and an Open/Completed badge.
+- Replaced the board placeholder with <TaskList />.
+
+Important files:
+- web/src/components/TaskList.tsx, web/src/components/TaskListView.tsx
+- web/src/components/TaskList.spec.ts, web/src/components/TaskListView.spec.tsx
+- web/src/app/providers.tsx, web/src/app/board/page.tsx
+- web/package.json, web/package-lock.json (adds @tanstack/react-query), web/README.md
+
+Validation (run in web/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS (eslint .)
+- npm run typecheck    -> PASS (tsc --noEmit)
+- npm test             -> PASS (38 tests, 6 suites: +8 new = 5 TaskListView + 3 TaskList)
+- npm run build        -> PASS (routes /, /login, /register, /board 6.29 kB)
+- Browser flow (agent-browser; `next start` on 3000 against a built NestJS API on
+  3101 behind a scratch CORS-adding proxy on 3001, throwaway postgres:17-alpine on
+  55432, prisma migrate deploy):
+    register (Ada) -> /board empty state ("No tasks yet");
+    3 tasks created via the API -> reload lists them newest-first with the
+      Completed/Open badges, the description, and "Due Feb 3, 2026";
+    simulated /tasks 500 (proxy toggle) -> region role="alert"
+      "We couldn't load your tasks: Simulated tasks failure" + "Try again";
+    clearing the failure + clicking "Try again" -> list re-renders;
+    responsive: computed flexDirection column @390px, row @1280px.
+
+Acceptance criteria:
+- Board lists the current user's tasks from the API -> met (list from
+  client.listTasks; browser-verified).
+- Loading, empty, and error states each rendered appropriately -> met
+  (TaskListView.spec.tsx + browser empty/error states).
+- List is responsive and keyboard accessible -> met (flex-col -> sm:flex-row,
+  computed-style check; native ul/button + aria-label).
+- View verified in the browser and relevant checks pass -> met (see above).
+
+Remaining concerns:
+- The API has no CORS yet, so browser calls from :3000 to :3001 were tunneled
+  through a temporary CORS proxy for this check; enabling CORS scoped to the web
+  origin belongs to TASK-014.
+- The list fetches a single page (limit 100 = the API max). Pagination / a
+  completed filter UI is not part of this task; add if the backlog needs it.
+- The access token is still memory-only (from TASK-009/010); a reload relies on
+  the transparent refresh through the httpOnly cookie, which is why a reloaded
+  board re-acquires the token via /auth/me + refresh before listing.
+- TASK-012 (create) and TASK-013 (toggle/edit/delete) build on this container.
