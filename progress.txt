@@ -537,3 +537,75 @@ Remaining concerns:
   match the API repo and the Next 15 config.
 - The home page is a placeholder; auth pages/routing (TASK-010), the API client (TASK-009),
   and the board (TASK-011+) build on this scaffold.
+
+
+=====================================================================
+2026-10-13T00:27Z  TASK-009  Add the API client and authentication token handling
+Branch: ralph/task-009-web-api-client (web repo) | root repo: master
+Commit: web@7e2461ec445fed1c4c09e37f93725e793a755cf7
+=====================================================================
+
+Summary:
+- Added a typed API client under web/src/lib/api (client.ts, errors.ts, token-store.ts,
+  types.ts, index.ts) that speaks the API's { success, statusCode, data } envelope and
+  returns the unwrapped `data`.
+- Token handling: the in-memory access token is attached as `Authorization: Bearer ...`
+  when present (header omitted otherwise); every request sends `credentials: "include"`
+  so the httpOnly refresh cookie reaches POST /auth/refresh; JSON bodies get a
+  Content-Type automatically.
+- Refresh-on-401: a 401 triggers exactly ONE refresh attempt (single-flight — concurrent
+  401s share one refreshPromise) and then retries the original request with the new
+  token. The retry cannot itself refresh, so a second 401 throws instead of looping.
+- Failed refresh clears the token store, calls `onUnauthenticated` (default
+  `redirectToLogin` -> window.location.assign('/login')), and throws a structured
+  ApiError. Auth endpoints (register/login/refresh/logout) bypass the refresh flow so
+  invalid credentials surface as a 401 ApiError with no redirect.
+- ApiError exposes statusCode / error / messages[] / path. Typed methods: register,
+  login, logout, me, listTasks(page/limit/completed), createTask, getTask, updateTask,
+  deleteTask. Exported `apiClient` singleton (baseUrl from NEXT_PUBLIC_API_URL) plus a
+  shared `authTokenStore`.
+- Added the web test stack: Jest 29 + ts-jest 29 (@types/jest), configured in
+  package.json (node env, testRegex .spec.tsx?) with tsconfig.jest.json (CommonJS
+  override so the bundler-style tsconfig compiles under Jest); new `npm test` and
+  `test:watch` scripts.
+
+Important files:
+- web/src/lib/api/client.ts
+- web/src/lib/api/client.spec.ts
+- web/src/lib/api/errors.ts
+- web/src/lib/api/token-store.ts
+- web/src/lib/api/types.ts
+- web/src/lib/api/index.ts
+- web/package.json, web/package-lock.json, web/tsconfig.jest.json
+- web/README.md (test command + API client section)
+
+Validation (run in web/; machine exports NODE_ENV=production):
+- npm test          -> PASS (12 tests, 1 suite). Covers: bearer token attached / omitted;
+  401 -> one refresh -> retry with the new token; no second refresh on a retried 401;
+  failed refresh clears the token + calls onUnauthenticated; single shared refresh for
+  concurrent 401s; structured 400 ApiError with no refresh; login 401 does not refresh
+  (no redirect); access token stored after login; JSON body + list query serialization;
+  204 -> undefined; default redirect to /login when the refresh fails.
+- npm run typecheck -> PASS (tsc --noEmit, includes the specs via @types/jest)
+- npm run lint      -> PASS (eslint .)
+- npm run format:check -> PASS (Prettier)
+- npm run build     -> PASS (next build; routes /, /_not-found, /icon.svg)
+
+Acceptance criteria:
+- Requests include the access token when present -> met (bearer header test + omitted
+  when absent).
+- A 401 triggers exactly one refresh then retries -> met (retry test + no-second-refresh
+  test + single-flight test).
+- A failed refresh clears auth state and redirects to /login -> met (clear + redirect
+  tests, including the default window.location.assign('/login') path).
+- The client is covered by tests -> met (12 specs in client.spec.ts).
+
+Remaining concerns:
+- The access token is held in memory only (never persisted), so a page reload relies on
+  the refresh cookie through the 401 -> refresh path; TASK-010 restores the session via
+  /auth/me (which, with no token in memory, 401s then refreshes via the cookie).
+- The API currently does not enable CORS (api/src/main.ts has no enableCors), so browser
+  calls from localhost:3000 -> localhost:3001 will be blocked until that is added. Out of
+  scope for TASK-009 (web repo only); needed for TASK-010's browser flow / TASK-014.
+- npm audit reports 39 advisories (6 moderate, 33 high) after adding Jest (adapters/
+  transitive deps), consistent with the API repo's earlier note.
