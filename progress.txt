@@ -749,3 +749,65 @@ Remaining concerns:
   the transparent refresh through the httpOnly cookie, which is why a reloaded
   board re-acquires the token via /auth/me + refresh before listing.
 - TASK-012 (create) and TASK-013 (toggle/edit/delete) build on this container.
+
+
+=====================================================================
+2026-10-13T00:54Z  TASK-012  Add task creation
+Branch: ralph/task-012-web-create-task (web repo) | root repo: master
+Commit: web@61f7d0b
+=====================================================================
+
+Summary:
+- Added a create-task form (web/src/components/TaskCreateForm.tsx) above the list on
+  /board: title (required), optional description (textarea), optional due date
+  (type=date). Client validation mirrors the API DTO via
+  web/src/lib/tasks/validation.ts (validateTaskForm: nonempty title <=200, description
+  <=2000, valid date; toCreateTaskInput trims the title, omits empty description/due
+  date, converts the date input to ISO).
+- Submits through TanStack Query useMutation(client.createTask); on success it
+  invalidates queryKey ['tasks'] so TaskList refetches in place (no full page reload),
+  resets the form, and disables the button while pending. Failures show a role="alert"
+  message (createTaskErrorMessage).
+- FormField gained optional required (default true) + multiline (default false) props
+  to support the optional description textarea and due date; login/register behaviour
+  is unchanged.
+
+Important files:
+- web/src/components/TaskCreateForm.tsx, web/src/components/TaskCreateForm.spec.tsx
+- web/src/lib/tasks/validation.ts, web/src/lib/tasks/validation.spec.ts
+- web/src/components/FormField.tsx, web/src/app/board/page.tsx, web/README.md
+
+Validation (run in web/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS (eslint .)
+- npm run typecheck    -> PASS (tsc --noEmit)
+- npm test             -> PASS (48 tests, 8 suites: +10 = 7 validation + 3 TaskCreateForm)
+- npm run build        -> PASS (routes /, /login, /register, /board 7.87 kB + middleware)
+- Browser flow (agent-browser; `next start` on 3000 against a built NestJS API on 3101
+  behind a scratch CORS-adding proxy on 3001, throwaway postgres:17-alpine on 55432,
+  prisma migrate deploy):
+    register (Ada) -> /board empty state;
+    Add task with an empty title -> role="alert" "Title is required.",
+      title aria-invalid=true, no task created;
+    create "Write the report" (title+description) -> appears immediately with the
+      description + Open badge, form resets; a window marker set before submit survived
+      the update, proving no full page reload;
+    create "Plan the launch" with due 2030-01-02 -> "Due Jan 2, 2030";
+    psql: 2 Task rows, both owned by the registered user (ownerId join), dueDate stored.
+
+Acceptance criteria:
+- Create a task with a nonempty title and optional details -> met (form + browser +
+  psql check).
+- The form rejects an empty title before submitting -> met (validateTaskForm + browser:
+  role="alert", aria-invalid, no task created).
+- The new task appears on the board without a full reload -> met (invalidateQueries
+  refetch; window marker survived).
+- Flow verified in the browser and relevant checks pass -> met (see above).
+
+Remaining concerns:
+- The API still has no CORS, so browser calls from :3000 to :3001 were tunneled through
+  a temporary CORS proxy for this check; enabling CORS scoped to the web origin belongs
+  to TASK-014.
+- On success the list refreshes via a query invalidation (network refetch) rather than
+  an optimistic insert; acceptable and keeps a single source of truth.
+- TASK-013 (toggle/edit/delete) builds on this form + the ['tasks'] query key.

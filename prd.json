@@ -196,8 +196,8 @@
         "The new task appears on the board without a full reload.",
         "The flow is verified in the browser and relevant checks pass."
       ],
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added TaskCreateForm (web/src/components/TaskCreateForm.tsx) above the list on /board: title (required), optional description (textarea), optional due date (type=date). Client validation mirrors the API DTO via web/src/lib/tasks/validation.ts (validateTaskForm: nonempty title <=200, description <=2000, valid date; toCreateTaskInput trims title, omits empty description/dueDate, converts the date input to ISO). Submits through useMutation(client.createTask) and on success invalidates queryKey ['tasks'] so TaskList refetches in place (no full page reload); errors surface as a role='alert' message (createTaskErrorMessage); the form resets on success and disables the button while pending. FormField gained optional required (default true) + multiline (default false) props to support the optional description textarea/due date, preserving login/register behaviour. Tests: src/lib/tasks/validation.spec.ts (7) + src/components/TaskCreateForm.spec.tsx (3) -> npm test 48 passed (8 suites, +10). Validation in web/: format:check, lint, typecheck, build all PASS (route /board 7.87 kB). Browser-verified (agent-browser; next start on 3000 against a built NestJS API on 3101 behind a scratch CORS proxy on 3001 + throwaway postgres:17-alpine on 55432, prisma migrate deploy): register -> /board empty state; Add task with an empty title -> role='alert' 'Title is required.', title aria-invalid=true, no task created; create 'Write the report' (title+description) -> appears immediately (window marker survived = no reload) with description + Open badge and the form reset; create 'Plan the launch' with due 2030-01-02 -> 'Due Jan 2, 2030'; psql shows both rows owned by the registered user (ownerId join), dueDate 2030-01-02. web commit 61f7d0b on branch ralph/task-012-web-create-task. TASK-013 (toggle/edit/delete) builds on this."
     },
     {
       "id": "TASK-013",
