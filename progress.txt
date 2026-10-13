@@ -293,3 +293,81 @@ Remaining concerns:
 - TASK-006 will consume Task + the (ownerId, completed) index for the paginated, completion-
   filtered list endpoint; no service/controller uses the model yet.
 
+
+
+=====================================================================
+2026-10-13T00:08Z  TASK-006  Implement per-user task CRUD endpoints
+Branch: ralph/task-006-task-crud (api repo) | root repo: master
+Commit: api@0b1f946646206ac2e0cd7c4b33fd05a741131c16
+=====================================================================
+
+Summary:
+- Added a TasksModule (api/src/tasks) with CRUD endpoints under /api/v1/tasks, all
+  guarded by the reusable AuthGuard and scoped to @CurrentUser().id:
+    POST   /tasks      -> 201 created task
+    GET    /tasks      -> 200 paginated list
+    GET    /tasks/:id  -> 200 one owned task
+    PATCH  /tasks/:id  -> 200 updated task
+    DELETE /tasks/:id  -> 204 no content
+- Ownership: TasksService.findOwnedTask uses prisma.task.findFirst({ where: { id, ownerId } })
+  and throws NotFoundException('Task not found') -> another user's task returns 404 for
+  read, update, and delete (no existence disclosure). Lists are filtered by ownerId.
+- List pagination + filtering: ListTasksQueryDto (page default 1, limit default 20 / max 100,
+  completed 'true'/'false' via class-transformer Transform). Ordered createdAt desc; response
+  envelope { data, meta: { page, limit, total, totalPages } }.
+- Validation: CreateTaskDto/UpdateTaskDto (title 1..200 required on create; optional
+  description <=2000, dueDate ISO-8601, completed boolean). The global ValidationPipe
+  (whitelist + forbidNonWhitelisted + transform) returns a structured 400
+  ({ statusCode, message: [...] }).
+- TasksModule imports AuthModule (which exports AuthGuard); AppModule registers TasksModule.
+
+Important files:
+- api/src/tasks/tasks.module.ts, tasks.controller.ts, tasks.service.ts
+- api/src/tasks/dto/create-task.dto.ts, update-task.dto.ts, list-tasks-query.dto.ts
+- api/src/tasks/tasks.service.spec.ts
+- api/test/tasks.e2e-spec.ts
+- api/src/app.module.ts, api/README.md (Tasks section)
+
+Validation (run in api/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS
+- npm run typecheck    -> PASS
+- npm run build        -> PASS
+- npm test             -> PASS (23 tests, 5 suites: 10 tasks service + 13 prior)
+- npm run test:e2e     -> PASS (20 tests, 3 suites: 8 tasks e2e + 12 prior)
+                          Includes: auth 401, create sets ownerId, structured 400 for an
+                          empty title and limit>100, list ownership isolation + pagination
+                          meta + completed filter, read/update/delete flow, and another
+                          user's task -> 404 on read/update/delete while the owner still
+                          sees it.
+- Real Postgres smoke (throwaway postgres:17-alpine on host port 55432; `prisma migrate
+  deploy` applied both migrations; API on port 3002):
+    register Ada + Bob -> each 201;
+    POST /tasks x4 (Ada) -> 201;
+    GET /tasks -> { count: 4, meta:{page:1,limit:20,total:4,totalPages:1} };
+    GET /tasks?page=1&limit=2 -> meta totalPages 2;
+    GET /tasks?completed=true -> 0 (all open); ?completed=false -> 3;
+    GET own -> 200; PATCH own -> 200 ({title,completed:true});
+    Bob GET/PATCH/DELETE Ada's task -> 404/404/404; Bob list -> 0;
+    DELETE own -> 204; GET after delete -> 404;
+    POST {title:""} -> 400 {statusCode:400,message:["title must be longer than ..."]};
+    GET ?limit=1000 -> 400 {message:["limit must not be greater than 100"]};
+    GET /tasks with no auth -> 401;
+    psql: 3 remaining Ada-owned Task rows (owner joins to ada@example.com).
+
+Acceptance criteria:
+- Authenticated user can create/list/read/update/delete own tasks -> met (e2e + smoke).
+- Another user's task read/update/delete -> 404 -> met (findOwnedTask + e2e + smoke).
+- List pagination + completed filter -> met (e2e + smoke + unit).
+- Invalid input -> structured 400 -> met (e2e + smoke).
+- Task CRUD e2e tests pass -> met (test/tasks.e2e-spec.ts, 8 tests).
+
+Remaining concerns:
+- Ownership reads then updates/deletes with two queries (findFirst then update/delete). It is
+  correct and keeps the returned entity simple; a stricter single-statement approach would use
+  updateMany/deleteMany with { id, ownerId } and check the count if that is ever preferred.
+- No ParseUUIDPipe on :id, so a malformed id simply yields 404 (consistent with the "hide
+  existence" rule); revisit if the PRD later wants 400 for malformed ids.
+- The list envelope { data, meta } is task-specific; TASK-007 will introduce the global
+  success/error envelope and Swagger docs, so this shape may be wrapped there.
+- The AuthGuard verifies the token only (no DB existence check), unchanged from TASK-004.
