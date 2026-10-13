@@ -609,3 +609,77 @@ Remaining concerns:
   scope for TASK-009 (web repo only); needed for TASK-010's browser flow / TASK-014.
 - npm audit reports 39 advisories (6 moderate, 33 high) after adding Jest (adapters/
   transitive deps), consistent with the API repo's earlier note.
+
+
+=====================================================================
+2026-10-13T00:41Z  TASK-010  Add registration, login, and protected routing
+Branch: ralph/task-010-web-auth (web repo) | root repo: master
+Commit: web@6b14559
+=====================================================================
+
+Summary:
+- Added the auth layer (web/src/lib/auth): AuthProvider + useAuth() restores the
+  session via GET /auth/me (transparent refresh through the httpOnly cookie) and
+  exposes login/register/logout; AuthProvider wraps the app via src/app/providers.tsx.
+- Accessible /login and /register pages sharing src/components/FormField.tsx
+  (labels via htmlFor, aria-invalid + aria-describedby, inline role="alert" field
+  errors). A failed login keeps the entered email and shows one form-level alert;
+  a duplicate register shows a 409 message. Client validation
+  (src/lib/auth/validation.ts) mirrors the API DTOs (email, name 1..100, password 8..72).
+- Protected routing: src/middleware.ts redirects unauthenticated /board -> /login and
+  authenticated /, /login, /register -> /board, keyed off a readable tb_session cookie
+  (src/lib/auth/session.ts). The API refresh cookie is httpOnly and path-scoped to
+  /api/v1/auth, so middleware cannot read it; the app sets its own routing-hint cookie
+  on auth and clears it on logout / refresh failure. src/app/board/page.tsx is the
+  protected shell (the list arrives in TASK-011).
+- Fixed a latent browser bug in web/src/lib/api/client.ts: fetch was called as a method
+  (this.fetchImpl(...)), which throws "TypeError: Illegal invocation" in the browser.
+  It now binds to the global (fetch.bind(globalThis)). TASK-009's tests inject a fetch
+  mock, so they never hit it.
+
+Important files:
+- web/src/lib/auth/{context.tsx,session.ts,validation.ts,redirect.ts,index.ts}
+- web/src/lib/auth/{validation,redirect,session}.spec.ts
+- web/src/app/{providers.tsx,layout.tsx,page.tsx}
+- web/src/app/login/page.tsx, web/src/app/register/page.tsx, web/src/app/board/page.tsx
+- web/src/components/FormField.tsx, web/src/middleware.ts
+- web/src/lib/api/client.ts (fetch bind fix), web/README.md
+
+Validation (run in web/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS
+- npm run typecheck    -> PASS
+- npm test             -> PASS (30 tests, 4 suites: 18 new auth + 12 api-client)
+- npm run build        -> PASS (routes /, /login, /register, /board + middleware 34.3kB)
+- Browser flow (agent-browser against a real stack: built NestJS API on port 3101
+  behind a scratch CORS-adding proxy on 3001, throwaway postgres:17-alpine on 55432,
+  `next start` on 3000):
+    unauth /board -> /login;
+    failed login -> "Incorrect email or password" alert with the email retained;
+    register empty submit -> 3 role="alert" errors; invalid email + short password
+      -> 2 errors with aria-invalid;
+    valid register -> /board "Signed in as Ada Lovelace", tb_session set;
+    reload -> session restored via /auth/me;
+    logout -> /login and cookie cleared;
+    login with valid credentials -> /board.
+
+Acceptance criteria:
+- Register/login forms submit and display validation errors accessibly -> met
+  (aria-invalid/aria-describedby + role="alert"; browser-verified).
+- Login failures shown without clearing the email field -> met (browser).
+- Authenticated users land on the board / unauthenticated redirected to login ->
+  met (middleware + provider; browser flow + curl 307 checks).
+- Flow verified in the browser and relevant checks pass -> met (see above).
+
+Remaining concerns:
+- The API has no CORS yet, so browser calls from :3000 to :3001 are blocked by default.
+  The browser check tunneled through a temporary CORS proxy; enabling CORS scoped to
+  the web origin belongs to TASK-014.
+- `next dev` fails in this sandbox: its Turbopack/webpack middleware bundle is
+  eval-based and the environment rejects code generation from strings ("EvalError:
+  Code generation from strings disallowed"). The production build / `next start` works;
+  not a code issue.
+- tb_session is a non-httpOnly routing hint only; the API still enforces auth. A stale
+  cookie is corrected on the next load when /auth/me fails (the provider clears it and
+  the board redirects to /login).
+- /board is a placeholder shell; TASK-011 builds the list view.
