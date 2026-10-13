@@ -458,3 +458,82 @@ Remaining concerns:
   stricter production posture (no default secret) belongs with TASK-014 hardening.
 - Env validation runs only in main.ts bootstrap (not AppModule), so e2e/unit app
   builds are unaffected by ambient env.
+
+
+
+=====================================================================
+2026-10-13T00:22Z  TASK-008  Scaffold the Next.js web service with Docker
+Branch: ralph/task-008-web-scaffold (web repo) | root repo: master
+Commit: web@d411b87
+=====================================================================
+
+Summary:
+- Created the web/ repo: Next.js 15.5.27 (App Router, TypeScript 5.9, React 19.3,
+  Tailwind CSS v4 via @tailwindcss/postcss) with ESLint flat config + Prettier.
+- Home route '/' renders a landing page (src/app/layout.tsx + page.tsx + globals.css
+  + icon.svg).
+- next.config.ts sets output: 'standalone' and outputFileTracingRoot: __dirname. The
+  tracing root matters: a stray lockfile in the developer's home dir made Next infer
+  the wrong workspace root, which would nest the standalone output and break the
+  Dockerfile's `node server.js`.
+- Dockerfile is multi-stage (deps -> build -> runner): the runner copies
+  .next/standalone + .next/static + public and runs `node server.js` as non-root
+  uid/gid 1001 (web) on port 3000 with a HEALTHCHECK.
+- Scripts: dev, build, start, lint (ESLint flat config via the CLI, not the deprecated
+  `next lint`), typecheck (tsc --noEmit), format:check.
+- The committed root docker-compose.yml already declared the web service (build ./web,
+  NEXT_PUBLIC_API_URL, 3000:3000); unchanged.
+- Decision: pinned the stable Next 15.5 / React 19 / TS 5.9 line rather than the current
+  latest tags (Next 16 / TS 7 / ESLint 10), matching the API repo's stable-stack approach
+  after the earlier Nest-scaffold breakage.
+
+Important files:
+- web/package.json, web/package-lock.json, web/tsconfig.json, web/next.config.ts
+- web/postcss.config.mjs, web/eslint.config.mjs, web/.prettierrc
+- web/.gitignore, web/.gitattributes, web/.dockerignore, web/.env.example
+- web/Dockerfile
+- web/src/app/layout.tsx, web/src/app/page.tsx, web/src/app/globals.css, web/src/app/icon.svg
+- web/public/.gitkeep, web/README.md
+
+Validation (run in web/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS (eslint .)
+- npm run typecheck    -> PASS (tsc --noEmit)
+- npm run build        -> PASS (routes /, /_not-found, /icon.svg; standalone output:
+                          .next/standalone/server.js at the root)
+- Standalone smoke: node .next/standalone/server.js -> GET / 200 with
+                    <title>Task Board</title>; /icon.svg 200
+- Docker: docker compose build web -> image task-board-web:latest; container id ->
+          uid=1001(web) gid=1001(web); GET :3900/ -> 200 <title>Task Board</title>;
+          HEALTHCHECK -> healthy (exit 0)
+- Full stack: docker compose -p taskboard -f docker-compose.yml -f <scratch override>
+              up -d --build -> db + api + web all healthy; GET localhost:3001/api/v1/health
+              -> 200 {success:true,statusCode:200,data:{status:'ok',...}}; GET
+              localhost:3000/ -> 200 <title>Task Board</title>; compose exec web id ->
+              uid=1001(web); stack torn down with `down -v`.
+
+Acceptance criteria:
+- The web app builds and runs; the home route renders -> met (build + standalone smoke
+  + Docker container + compose, all GET / 200).
+- The Dockerfile builds a minimal standalone image and serves as a non-root user ->
+  met (standalone output, uid/gid 1001 web, HEALTHCHECK healthy).
+- docker compose up serves the web service alongside api and postgres -> met (all three
+  healthy; api health + web home verified).
+- lint, type-check, and build commands pass -> met (all four checks PASS).
+
+Remaining concerns:
+- Host port 5432 is held by an unrelated container (social-feed-postgres), so the full
+  stack was verified with a scratch compose override using the `!override` tag to remap
+  the db host port to 55432 (plain list merging appends ports and does not replace them).
+  The committed docker-compose.yml is unchanged and correct.
+- `next build` fails when NODE_ENV is forced to 'development' (prerendering /404 throws
+  "<Html> should not be imported outside of pages/_document"). Build under the standard
+  production NODE_ENV; note NODE_ENV=development is only needed for `npm install` on this
+  machine (which exports NODE_ENV=production).
+- Dependencies are installed (NODE_ENV=development npm install --include=dev); npm audit
+  reports 7 advisories (1 moderate, 6 high) in the tree, consistent with the API repo's
+  earlier note; review later if desired.
+- eslint@9.39.5 prints an npm deprecation notice (ESLint 10 is current); kept at 9.x to
+  match the API repo and the Next 15 config.
+- The home page is a placeholder; auth pages/routing (TASK-010), the API client (TASK-009),
+  and the board (TASK-011+) build on this scaffold.
