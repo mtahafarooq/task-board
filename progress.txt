@@ -811,3 +811,82 @@ Remaining concerns:
 - On success the list refreshes via a query invalidation (network refetch) rather than
   an optimistic insert; acceptable and keeps a single source of truth.
 - TASK-013 (toggle/edit/delete) builds on this form + the ['tasks'] query key.
+
+
+=====================================================================
+2026-10-13T01:05Z  TASK-013  Add task completion, editing, and deletion
+Branch: ralph/task-013-web-task-actions (web repo) | root repo: master
+Commit: web@7bc5d04da5c4184b2da79e6e0733e7fca7599cfd
+=====================================================================
+
+Summary:
+- Each /board task row (web/src/components/TaskItem.tsx) now supports the owner
+  managing it:
+    * completion checkbox (labelled) toggles complete/incomplete;
+    * Edit opens an inline TaskEditForm (title, description, due date);
+    * Delete asks for a two-step inline confirmation (Delete this task? -> Confirm/Cancel).
+- TaskList wires three TanStack Query mutations:
+    * toggle -> optimistic cache update of ['tasks', userId] via applyCompleted,
+      with rollback on error, then invalidate ['tasks'];
+    * update (edit) -> PATCH then invalidate ['tasks'];
+    * delete -> DELETE then invalidate ['tasks'].
+  All action failures surface as a single role="alert" message
+  (taskActionErrorMessage) and keep the edit form / confirmation open so input
+  is not lost. Pure helpers: taskToFormValues + toUpdateTaskInput
+  (web/src/lib/tasks/validation.ts; update sends null to clear empty
+  description/dueDate), formatDueDate (web/src/lib/tasks/format.ts),
+  applyCompleted + taskActionErrorMessage (TaskList.tsx).
+- TaskEditForm reuses the existing validateTaskForm and FormField, and the row
+  keeps its previous markup (checkbox, badges, description, due date) with the
+  action controls added.
+
+Important files:
+- web/src/components/TaskItem.tsx (+ new)
+- web/src/components/TaskEditForm.tsx (+ new), TaskEditForm.spec.tsx (+ new)
+- web/src/components/TaskList.tsx, TaskList.spec.ts
+- web/src/components/TaskListView.tsx, TaskListView.spec.tsx
+- web/src/lib/tasks/validation.ts, validation.spec.ts
+- web/src/lib/tasks/format.ts (+ new), format.spec.ts (+ new)
+- web/README.md (task actions section)
+
+Validation (run in web/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS (eslint .)
+- npm run typecheck    -> PASS (tsc --noEmit)
+- npm test             -> PASS (61 tests, 10 suites; +13 over the prior 48:
+                          2 format + 4 validation + 4 TaskList + 2 TaskEditForm
+                          + 1 TaskListView)
+- npm run build        -> PASS (routes /, /login, /register, /board 8.98 kB +
+                          middleware)
+- Browser flow (agent-browser; `next start` on 3000 against a built NestJS API on
+  3101 behind a scratch CORS-adding proxy on 3001, throwaway postgres:17-alpine
+  on 55432, prisma migrate deploy):
+    register (Ada) -> /board empty;
+    create "Write the report" -> check the checkbox -> "Completed" (checked),
+      reload -> still Completed; uncheck -> "Open", reload -> still Open;
+    Edit -> retitle "Write the annual report" + description + due 2030-06-15 ->
+      row shows "Due Jun 15, 2030", reload -> persisted;
+    Delete -> "Delete this task?" appears (Cancel keeps the task) -> Confirm
+      removes it ("No tasks yet"), reload -> still empty;
+    psql: Task count 0 after deletion.
+
+Acceptance criteria:
+- Mark an owned task complete/incomplete; survives reload -> met (optimistic
+  checkbox + PATCH; browser reload check both directions).
+- Edit a task's title and details -> met (inline TaskEditForm -> PATCH; browser
+  + reload).
+- Delete after confirmation; disappears -> met (two-step confirmation; browser +
+  reload + psql).
+- Interactions verified in the browser and relevant checks pass -> met (above).
+
+Remaining concerns:
+- The API still has no CORS, so the browser check tunneled through a temporary
+  CORS proxy (localhost:3001 -> 3101); enabling CORS scoped to the web origin
+  belongs to TASK-014.
+- agent-browser's ref/coordinate clicks were unreliable on the small action
+  buttons in this sandbox, so the board interactions were driven via in-page
+  JS clicks; the app's own handlers/state were exercised (not a code issue).
+- Toggle is optimistic; edit/delete refetch via invalidation (no optimistic
+  edit/remove), consistent with TASK-012's create. Fine for this scope.
+- The board still lists a single page (limit 100) from TASK-011; pagination UI
+  remains out of scope.
