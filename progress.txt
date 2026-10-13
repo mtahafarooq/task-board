@@ -173,3 +173,62 @@ Remaining concerns:
 - GET /auth/me verifies the token inline; TASK-004 will extract the reusable guard + decorator.
 - Component README documents the endpoints; the root README/auth section is finalized in
   TASK-007/TASK-014.
+
+
+=====================================================================
+2026-10-13T00:30Z  TASK-004  Add the JWT auth guard and current-user decorator
+Branch: ralph/task-004-auth-guard (api repo) | root repo: master
+Commit: api@b794111ffa54ac2dd6a7cf3e4ebf582a75a0baf8
+=====================================================================
+
+Summary:
+- Added a reusable AuthGuard (api/src/auth/guards/auth.guard.ts): parses the Bearer token
+  from the Authorization header, verifies it with JwtService, attaches { id, email } to
+  request.user, and throws UnauthorizedException (401) when the token is missing, not a
+  Bearer token, or invalid.
+- Added @CurrentUser() (api/src/auth/decorators/current-user.decorator.ts) backed by an
+  exported currentUserFactory, so it can be unit tested and reused; it resolves the
+  authenticated user (and thus the id) from the request.
+- Shared token/user types in api/src/auth/auth.types.ts (AccessTokenPayload,
+  AuthenticatedUser); AuthService now imports AccessTokenPayload instead of redefining it.
+- /auth/me now uses @UseGuards(AuthGuard) + @CurrentUser(); AuthService.getProfile(userId)
+  simply loads the user by id (token verification moved into the guard).
+- AuthModule provides and exports AuthGuard (and JwtModule) so later feature modules
+  (e.g. TASK-006 tasks) can guard their controllers with the same building blocks.
+- README documents the guard/decorator usage.
+
+Important files:
+- api/src/auth/guards/auth.guard.ts, api/src/auth/guards/auth.guard.spec.ts
+- api/src/auth/decorators/current-user.decorator.ts,
+  api/src/auth/decorators/current-user.decorator.spec.ts
+- api/src/auth/auth.types.ts
+- api/src/auth/auth.controller.ts, api/src/auth/auth.module.ts, api/src/auth/auth.service.ts
+- api/src/auth/auth.service.spec.ts, api/test/auth.e2e-spec.ts, api/README.md
+
+Validation (run in api/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS
+- npm run typecheck    -> PASS
+- npm run build        -> PASS
+- npm test             -> PASS (13 tests, 4 suites: 4 AuthGuard + 1 CurrentUser + 7 auth
+                          service + 1 health)
+- npm run test:e2e     -> PASS (12 tests: 2 health + 10 auth; /auth/me without/invalid
+                          token -> 401, valid token -> 200 with body.id === registered id)
+
+Acceptance criteria:
+- Requests without a valid bearer token to a protected route -> 401 -> met (AuthGuard unit
+  tests + /auth/me e2e without/invalid token).
+- @CurrentUser() resolves the authenticated user id -> met (decorator spec returns the
+  request user; /auth/me e2e loads the profile by the resolved id).
+- Guard behaviour covered by tests -> met (src/auth/guards/auth.guard.spec.ts).
+
+Remaining concerns:
+- The guard verifies the JWT signature/expiry only; it does not confirm the user still
+  exists in the DB (a valid token for a deleted user would pass the guard). /auth/me still
+  enforces existence via getProfile; if a later task needs strict per-request existence
+  checks, load the user in the guard.
+- AuthModule exports AuthGuard + JwtModule for reuse by TASK-006; no other module consumes
+  them yet.
+- Access-token secret still defaults to 'dev-only-change-me' (JWT_SECRET); production
+  hardening remains for TASK-007/TASK-014.
+

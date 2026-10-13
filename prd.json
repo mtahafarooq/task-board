@@ -67,8 +67,8 @@
         "The @CurrentUser() decorator resolves the authenticated user id.",
         "Guard behaviour is covered by tests."
       ],
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added AuthGuard (api/src/auth/guards/auth.guard.ts): reads the Bearer token, verifies it with JwtService, attaches { id, email } to request.user, and throws UnauthorizedException (401) for a missing, non-bearer, or invalid token. Added @CurrentUser() + exported currentUserFactory (api/src/auth/decorators/current-user.decorator.ts) resolving the authenticated user; shared types in api/src/auth/auth.types.ts (AccessTokenPayload, AuthenticatedUser). /auth/me now uses @UseGuards(AuthGuard) + @CurrentUser() and AuthService.getProfile(userId) loads by id (no longer parses the token). AuthModule provides and exports AuthGuard + JwtModule so later feature modules (TASK-006) can guard their controllers. Tests: src/auth/guards/auth.guard.spec.ts (4: missing header / non-bearer / invalid token -> 401, valid token -> true + user attached) and src/auth/decorators/current-user.decorator.spec.ts (1); updated auth.service.spec.ts for getProfile(userId). Validation in api/: npm run format:check, lint, typecheck, build all PASS; npm test -> 13 passed (4 suites); npm run test:e2e -> 12 passed (auth e2e strengthened: /auth/me body.id === registered user id). api commit b794111ffa54ac2dd6a7cf3e4ebf582a75a0baf8 on branch ralph/task-004-auth-guard."
     },
     {
       "id": "TASK-005",
