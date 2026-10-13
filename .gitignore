@@ -4,10 +4,6 @@
 # Ralph runtime state
 .ralph/
 
-# The application repos are independent git repositories.
-api/
-web/
-
 # OS noise
 .DS_Store
 

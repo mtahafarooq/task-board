@@ -4,11 +4,9 @@ You are running one fresh Ralph iteration in the host project. Complete at most 
 
 ## Workspace layout
 
-- This workspace root is a git repo that tracks the loop tooling (`scripts/`, `blueprint/`), archived runs (`archives/`), the compose files, and documentation. During a run it also tracks `prd.json` and `progress.txt`.
-- Backend code lives in `api/` (its own git repo). Commit backend changes there: `git -C api commit ...`.
-- Frontend code lives in `web/` (its own git repo). Commit frontend changes there: `git -C web commit ...`.
-- `api/` and `web/` are gitignored by the root repo. Do not try to stage them from the root.
-- Only modify files in the repo the selected task targets. Commit in that repo; commit root changes (prd.json, progress.txt, docs) in the root repo.
+- The workspace root is a single git repo. It tracks the loop tooling (`scripts/`, `blueprint/`), archived runs (`archives/`), the compose files, documentation, and the application source. During a run it also tracks `prd.json` and `progress.txt`.
+- Backend code lives in `api/` (NestJS + Prisma + PostgreSQL) and frontend code lives in `web/` (Next.js). Both are ordinary directories in this repo, not separate git repos.
+- One repo, one commit: stage only the files the selected task touches, together with the task's `prd.json` and `progress.txt` updates.
 
 ## Read first
 

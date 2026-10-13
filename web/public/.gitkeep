@@ -1,0 +1,2 @@
+# Keeps the public/ directory in version control; static assets served at the root
+# are added here in later tasks.

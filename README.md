@@ -3,13 +3,14 @@
 A full-stack task board: **Next.js** frontend, **NestJS** API, **PostgreSQL**, all
 wired together with Docker Compose and built task by task with the Ralph loop.
 
-The application code lives in two independent repos, created by the loop:
+The application code lives in this same repo:
 
 - `api/` — NestJS + Prisma + PostgreSQL backend
 - `web/` — Next.js (App Router) frontend
 
-This root repo only holds orchestration (compose, environment), the Ralph loop
-tooling, its reusable blueprint, and one archived directory per completed feature run.
+A single clone runs the whole stack. The root also holds orchestration (compose,
+environment), the Ralph loop tooling, its reusable blueprint, and one archived
+directory per completed feature run.
 
 ## Layout
 
