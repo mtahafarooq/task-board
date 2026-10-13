@@ -20,6 +20,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-taskboard}:${POSTGRES_PASSWORD:-taskboard}@db:5432/${POSTGRES_DB:-taskboard}?schema=public
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       PORT: "3001"
     command: sh -c "npx prisma migrate deploy && node dist/main.js"
     depends_on:
@@ -33,7 +34,8 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "3000:3000"
 

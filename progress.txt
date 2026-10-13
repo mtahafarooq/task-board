@@ -890,3 +890,85 @@ Remaining concerns:
   edit/remove), consistent with TASK-012's create. Fine for this scope.
 - The board still lists a single page (limit 100) from TASK-011; pagination UI
   remains out of scope.
+
+
+=====================================================================
+2026-10-13T01:15Z  TASK-014  Wire the full stack, document it, and smoke test end to end
+Branch: ralph/task-014-fullstack-integration (api repo) | root repo: master
+Commit: api@469a2f8
+=====================================================================
+
+Summary:
+- Enabled CORS on the API, scoped to the web origin (the piece every prior web
+  task deferred here). api/src/cors.ts exports setupCors(app, origin) (and
+  DEFAULT_CORS_ORIGIN = http://localhost:3000); main.ts calls it with the
+  CORS_ORIGIN from validateEnv, credentials: true so the httpOnly refresh cookie
+  reaches POST /auth/refresh. The configured origin is pinned (not reflected);
+  arbitrary origins get an ACAO that does not match, so the browser blocks them.
+- Wired CORS_ORIGIN through api/src/config/env.validation.ts (optional, default
+  http://localhost:3000) and documented it in api/README.md.
+- Finalized the root docker-compose.yml: api gets CORS_ORIGIN; web now depends
+  on api via `condition: service_healthy` (Dockerfile HEALTHCHECKs), so startup
+  is db healthy -> api healthy (after `prisma migrate deploy`) -> web.
+- .env.example documents CORS_ORIGIN; root README.md rewritten with the repo
+  layout, requirements, an environment-variable table, run instructions, and a
+  step-by-step smoke test (API health curl, register curl, browser flow, reset).
+- No web code changes were needed; the frontend already targets the API via
+  NEXT_PUBLIC_API_URL and sends credentials.
+
+Important files:
+- api/src/cors.ts (+ new), api/src/main.ts
+- api/src/config/env.validation.ts, api/src/config/env.validation.spec.ts
+- api/test/cors.e2e-spec.ts (+ new)
+- api/README.md
+- docker-compose.yml, .env.example, README.md (root)
+
+Validation (api repo; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS
+- npm run typecheck    -> PASS
+- npm run build        -> PASS
+- npm test             -> PASS (38 tests, 8 suites)
+- npm run test:e2e     -> PASS (25 tests, 5 suites) incl. new cors.e2e-spec.ts
+                          (simple request + preflight return
+                          ACAO=http://localhost:3000, ACAC=true; an unexpected
+                          origin is not reflected)
+Compose end-to-end (throwaway override remapping the busy db host port
+5432 -> 55432; the committed docker-compose.yml is unchanged):
+- docker compose up --build -> db, api, web all healthy in order; api log shows
+  `prisma migrate deploy` applying 20261012235230_add_user_model and
+  20261013000358_add_task_model automatically.
+- curl localhost:3001/api/v1/health -> {success:true,statusCode:200,data:{...}}.
+- CORS headers verified via curl (simple GET + OPTIONS preflight): ACAO
+  http://localhost:3000, ACAC true, allow-methods/headers present.
+- Browser (agent-browser) against the compose stack (web :3000 -> api :3001):
+    register (Grace Hopper) -> /board "Signed in as Grace Hopper";
+    create "Write the report" (title + description) -> appears immediately;
+    toggle -> "Completed", reload -> still Completed;
+    edit -> retitle "Write the annual report", reload -> persisted;
+    delete -> "Delete this task?" (Cancel kept it) -> Confirm removed it
+      ("No tasks yet"), reload -> still empty;
+    logout -> /login; login (grace@example.com) -> /board.
+- psql: two User rows (smoke@example.com, grace@example.com) and 0 Task rows
+  after deletion.
+
+Acceptance criteria:
+- docker compose up starts postgres, api, and web; migrations run automatically
+  -> met (health-gated startup + migrate deploy in the api log).
+- First-time user can register, log in, and manage tasks through the browser
+  against the compose stack -> met (browser flow above; CORS enabled).
+- Root README documents setup, environment, and smoke test -> met (rewritten).
+- Full flow verified and all project checks pass -> met (api checks + compose +
+  browser).
+
+Remaining concerns:
+- The API still has no refresh-token rotation/revocation and no DB existence
+  check in AuthGuard (unchanged from TASK-003/004); out of scope here.
+- The committed compose publishes db on host 5432; if that port is taken (as on
+  this machine) the stack needs an override. api reaches db over the compose
+  network regardless, so the db host mapping is only for external clients.
+- CORS_ORIGIN is a single origin (matches the PRD's "scoped to the web origin").
+  A multi-origin deployment would need to extend setupCors.
+- agent-browser ref/coordinate clicks were unreliable on the small board action
+  buttons; the flow was driven with in-page JS clicks (the app's own handlers
+  and state were exercised, not a code issue).

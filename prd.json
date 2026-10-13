@@ -228,8 +228,8 @@
         "The root README documents setup, environment, and how to smoke test the stack.",
         "The full end-to-end flow is verified and all project checks pass."
       ],
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Full-stack integration. API: enabled CORS scoped to the web origin via setupCors() (api/src/cors.ts), called in main.ts with CORS_ORIGIN (default http://localhost:3000) and credentials:true so the httpOnly refresh cookie reaches /auth/refresh; CORS_ORIGIN added to validateEnv (api/src/config/env.validation.ts) and documented in api/README.md. Root: docker-compose.yml passes CORS_ORIGIN to api and now gates web on api service_healthy (db->api->web start in order; api runs `prisma migrate deploy` before boot); .env.example documents CORS_ORIGIN; README.md rewritten with layout, requirements, an environment table, run instructions, and a smoke test. Validation in api/: npm run format:check, lint, typecheck, build PASS; npm test -> 38 passed (8 suites); npm run test:e2e -> 25 passed (5 suites) including the new test/cors.e2e-spec.ts (simple request + preflight ACAO=http://localhost:3000 with ACAC=true, and origin pinning). Compose smoke (scratch override remapping the busy db host port 5432->55432; committed compose unchanged): docker compose up --build -> db, api, web all healthy; api log shows both migrations applied; curl /api/v1/health -> {success,...}; CORS preflight + simple headers correct; browser (agent-browser) register -> /board, create task appears without a reload, toggle -> Completed and survives reload, edit retitles + persists, delete confirmation (Cancel keeps, Confirm removes) -> 'No tasks yet' and survives reload, logout -> /login, login -> /board; psql shows the registered users and 0 tasks after deletion. api commit 469a2f8 on branch ralph/task-014-fullstack-integration. Remaining: the API has no token revocation/refresh rotation (unchanged); host port 5432 must be free for the committed compose."
     }
   ]
 }
