@@ -371,3 +371,90 @@ Remaining concerns:
 - The list envelope { data, meta } is task-specific; TASK-007 will introduce the global
   success/error envelope and Swagger docs, so this shape may be wrapped there.
 - The AuthGuard verifies the token only (no DB existence check), unchanged from TASK-004.
+
+
+=====================================================================
+2026-10-13T00:14Z  TASK-007  Standardize API responses, errors, and documentation
+Branch: ralph/task-007-api-polish (api repo) | root repo: master
+Commit: api@ec1a4614a145b44d8b6a0acc24b80a6c11027088
+=====================================================================
+
+Summary:
+- One success envelope and one error shape, applied globally:
+    success -> { success: true, statusCode, data }
+    error   -> { success: false, statusCode, error, message, path }
+- ResponseInterceptor (api/src/common/interceptors/response.interceptor.ts) wraps
+  2xx payloads; it emits no body for 204. AllExceptionsFilter
+  (api/src/common/filters/all-exceptions.filter.ts) normalizes HttpExceptions and
+  500s (unexpected errors never leak internals; 5xx logged).
+- Both registered as APP_INTERCEPTOR/APP_FILTER providers in AppModule, so they
+  apply in the running app and in tests (main.ts is not used by e2e).
+- Startup env validation: validateEnv() (api/src/config/env.validation.ts) requires
+  DATABASE_URL + JWT_SECRET and validates PORT; main.ts calls it first and, on
+  failure, logs the message and process.exit(1) (fail fast with a clear message).
+- OpenAPI/Swagger: @nestjs/swagger ^11.4.7; setupSwagger() (api/src/swagger.ts)
+  serves the UI at /api/docs and the document at /api/docs-json, with a bearer
+  security scheme. Auth/tasks/health controllers and request DTOs annotated. The
+  document lists all 8 paths (health, auth register/login/refresh/logout/me,
+  tasks, tasks/{id}).
+- Shared envelope types in api/src/common/api-response.ts.
+- api/README.md documents the envelopes, the Swagger UI, env validation/fail-fast,
+  and how to run/configure/test; the auth and tasks examples reflect the envelope.
+
+Important files:
+- api/src/common/api-response.ts
+- api/src/common/interceptors/response.interceptor.ts (+ .spec.ts)
+- api/src/common/filters/all-exceptions.filter.ts (+ .spec.ts)
+- api/src/config/env.validation.ts (+ .spec.ts)
+- api/src/swagger.ts
+- api/src/main.ts, api/src/app.module.ts
+- api/src/auth/auth.controller.ts, api/src/auth/dto/{register,login}.dto.ts
+- api/src/tasks/tasks.controller.ts, api/src/tasks/dto/{create-task,update-task,list-tasks-query}.dto.ts
+- api/src/health/health.controller.ts
+- api/test/{health,auth,tasks}.e2e-spec.ts (updated), api/test/api-docs.e2e-spec.ts (new)
+- api/package.json (adds @nestjs/swagger), api/README.md
+
+Validation (run in api/; machine exports NODE_ENV=production):
+- npm run format:check -> PASS
+- npm run lint         -> PASS
+- npm run typecheck    -> PASS
+- npm run build        -> PASS
+- npm test             -> PASS (36 tests, 8 suites: +4 interceptor, +4 filter, +5 env
+                          validation over the prior 23)
+- npm run test:e2e     -> PASS (22 tests, 4 suites: +2 api-docs over the prior 20)
+- Built-server smoke (throwaway postgres:17-alpine host port 55432, migrate deploy
+  applied both migrations, node dist/main.js on port 3003):
+    GET /api/v1/health -> {success:true,statusCode:200,data:{status:'ok',...}};
+    GET /api/v1/nope -> {success:false,statusCode:404,error:'Not Found',
+                         message:'Cannot GET /api/v1/nope',path:'/api/v1/nope'};
+    GET /api/docs -> 200 (Swagger UI); /api/docs-json -> title 'Task Board API'
+                     v1.0 with all 8 paths + bearer security scheme;
+    register -> 201 {data.user,data.accessToken} (no passwordHash), login -> 200,
+    create task -> 201, list -> {data.data:[...],data.meta:{...}},
+    bad login -> 401 'Invalid email or password', invalid title -> 400
+    {message:['title must be longer than or equal to 1 characters']},
+    no auth -> 401;
+    missing DATABASE_URL/JWT_SECRET -> exit 1 with
+    "Missing required environment variable(s): DATABASE_URL, JWT_SECRET. ...".
+
+Acceptance criteria:
+- Success responses share one envelope / errors share one structure -> met
+  (interceptor + filter, unit specs, e2e, built-server smoke).
+- Startup fails fast with a clear message when a required env var is missing ->
+  met (validateEnv + main.ts catch; verified by running the built server without
+  DATABASE_URL/JWT_SECRET -> exit 1 with the clear message).
+- Swagger UI is served and describes all endpoints -> met (/api/docs 200;
+  /api/docs-json lists all 8 paths; api-docs e2e).
+- The API README documents how to run, configure, and test -> met (README updated).
+
+Remaining concerns:
+- BREAKING API SHAPE: every success body is now nested under `data` (and the tasks
+  list payload is `data.data` + `data.meta`). TASK-008/009+ (web) must consume the
+  envelope; TASK-009's API client should unwrap `data`.
+- The Swagger path (/api/docs) is not under the /api/v1 global prefix, so it does
+  not collide with controllers; document that if the PRD later wants it versioned.
+- main.ts now requires DATABASE_URL + JWT_SECRET at startup. The module-level
+  fallback ('dev-only-change-me') in AuthModule/AuthService remains for tests; a
+  stricter production posture (no default secret) belongs with TASK-014 hardening.
+- Env validation runs only in main.ts bootstrap (not AppModule), so e2e/unit app
+  builds are unaffected by ambient env.
